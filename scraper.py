@@ -2,6 +2,9 @@ from selenium  import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 import pandas as pd
+import smtplib
+import os
+import json
 
 YOUTUBE_TRENDING_URL = "https://www.youtube.com/feed/trending"
 
@@ -45,8 +48,10 @@ def parse_video(video):
   description = video.find_element(By.ID, 'description-text').text
 
   # Views and Posted date
-
-  views= video.find_element(By.ID, 'metadata-line').text # split this inyo two
+  views_split = video.find_element(By.ID, 'metadata-line').text
+  view_list = views_split.split('\n')
+  views = view_list[0]
+  posted = view_list[1]
 
   return {
     'title': title, 
@@ -54,8 +59,38 @@ def parse_video(video):
     'thumbnail': thumbnail_url, 
     'Channel': channel_name, 
     'description': description,
-    'views': views
+    'views': views,
+    'posted': posted
   }
+
+def send_email(body):
+  
+  # Set Global Variables
+  gmail_user = os.environ['EMAIL']
+  gmail_password =  os.environ['SECRETS']
+  # Create Email 
+  mail_from = gmail_user
+  mail_to = os.environ['EMAIL']
+  mail_subject = 'Hello'
+  mail_message_body = body
+
+  mail_message = '''\
+  From: %s
+  To: %s
+  Subject: %s
+  %s
+  ''' % (mail_from, mail_to, mail_subject, mail_message_body)
+
+  try:
+      server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+      server.login(gmail_user, gmail_password)
+      server.sendmail(mail_from, mail_to, mail_message)
+      server.close()
+
+      print('Email sent!')
+  except Exception as e:
+      print('Something went wrong...', e)
+    
 
 if __name__  == "__main__":
   print('Creating drivers')
@@ -70,7 +105,13 @@ if __name__  == "__main__":
   print("Save to the csv files")
   videos_df = pd.DataFrame(videosData)
   print(videos_df)
-  videos_df.to_csv('trending.csv')
+  videos_df.to_csv('trending.csv', index=None)
+
+  print('Send an email with the results')
+  body = json.dumps(videosData, indent=2)
+  send_email(body)
+
+  print('Finished')
 
  
  
